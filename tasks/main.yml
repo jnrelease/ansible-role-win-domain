@@ -1,0 +1,27 @@
+---
+- name: 'Connection attempt'
+  win_ping:
+  ignore_unreachable: true
+  register: 'conn'
+
+- name: Include tasks if variable is true
+  include_tasks: domain.yml
+  when: conn is not mapping or conn.unreachable is not defined or not conn.unreachable
+
+- name: Include tasks if variable is false
+  include_tasks: domain.yml
+  vars:
+    ansible_user: '{{ admin_user }}'
+    ansible_password: '{{ admin_password }}'
+  when: conn is mapping and conn.unreachable is defined and conn.unreachable
+
+- name: Reboot VM from Hyper-V host
+  ansible.windows.win_shell: |
+    Restart-VM -Name "{{ hostname }}" -Force
+  delegate_to: 172.17.109.13
+  when:
+    - domain_membership == 'workgroup'
+    - domain_state.reboot_required
+
+- name: Wait for system to become reachable over WinRM
+  wait_for_connection:
